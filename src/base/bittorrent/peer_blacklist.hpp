@@ -22,16 +22,14 @@ bool is_bad_peer(const lt::peer_info& info)
 // Unknown Peer filter
 bool is_unknown_peer(const lt::peer_info& info)
 {
-  QString country = Net::GeoIPManager::instance()->lookup(QHostAddress(info.ip.data()));
-  return info.client.find("Unknown") != std::string::npos && country == QLatin1String("CN");
+  return info.client.find("Unknown") != std::string::npos;
 }
 
 // Offline Downloader filter
 bool is_offline_downloader(const lt::peer_info& info)
 {
   unsigned short port = info.ip.port();
-  QString country = Net::GeoIPManager::instance()->lookup(QHostAddress(info.ip.data()));
-  return port >= 65000 && country == QLatin1String("CN") && info.client.find("Transmission") != std::string::npos;
+  return port >= 65000 && info.client.find("Transmission") != std::string::npos;
 }
 
 // BitTorrent Media Player Peer filter
