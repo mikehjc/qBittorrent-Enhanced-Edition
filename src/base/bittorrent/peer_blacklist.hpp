@@ -29,8 +29,7 @@ bool is_unknown_peer(const lt::peer_info& info)
 bool is_offline_downloader(const lt::peer_info& info)
 {
   unsigned short port = info.ip.port();
-  QString country = Net::GeoIPManager::instance()->lookup(QHostAddress(info.ip.data()));
-  return port >= 65000 && country == QLatin1String("CN") && info.client.find("Transmission") != std::string::npos;
+  return port >= 65000 && info.client.find("Transmission") != std::string::npos;
 }
 
 // BitTorrent Media Player Peer filter
