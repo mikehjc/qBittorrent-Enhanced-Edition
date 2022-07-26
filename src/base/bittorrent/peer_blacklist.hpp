@@ -22,7 +22,8 @@ bool is_bad_peer(const lt::peer_info& info)
 // Unknown Peer filter
 bool is_unknown_peer(const lt::peer_info& info)
 {
-  return info.client.find("Unknown") != std::string::npos;
+  std::regex id_filter("-(XL|SD|XF|QD|BN|DL|TS)(\\d+)-");
+  return info.client.find("Unknown") != std::string::npos || std::regex_match(info.pid.data(), info.pid.data() + 8, id_filter);
 }
 
 // Offline Downloader filter
