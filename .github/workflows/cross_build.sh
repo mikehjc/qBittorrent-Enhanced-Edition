@@ -1,18 +1,18 @@
 #!/bin/bash -e
 
 # This scrip is for static cross compiling
-# Please run this scrip in docker image: ubuntu:20.04
-# E.g: docker run --rm -v `git rev-parse --show-toplevel`:/build ubuntu:20.04 /build/.github/workflows/cross_build.sh
+# Please run this scrip in docker image: abcfy2/muslcc-toolchain-ubuntu:${CROSS_HOST}
+# E.g: docker run --rm -v `git rev-parse --show-toplevel`:/build abcfy2/muslcc-toolchain-ubuntu:arm-linux-musleabi /build/.github/workflows/cross_build.sh
 # If you need keep store build cache in docker volume, just like:
 #   $ docker volume create qbee-nox-cache
-#   $ docker run --rm -v `git rev-parse --show-toplevel`:/build -v qbee-nox-cache:/var/cache/apt -v qbee-nox-cache:/usr/src ubuntu:20.04 /build/.github/workflows/cross_build.sh
+#   $ docker run --rm -v `git rev-parse --show-toplevel`:/build -v qbee-nox-cache:/var/cache/apt -v qbee-nox-cache:/usr/src abcfy2/muslcc-toolchain-ubuntu:arm-linux-musleabi /build/.github/workflows/cross_build.sh
 # Artifacts will copy to the same directory.
 
 set -o pipefail
 
 # match qt version prefix. E.g 5 --> 5.15.2, 5.12 --> 5.12.10
 export QT_VER_PREFIX="6"
-export LIBTORRENT_BRANCH="RC_2_0"
+export LIBTORRENT_BRANCH="RC_1_2"
 
 # Ubuntu mirror for local building
 if [ x"${USE_CHINA_MIRROR}" = x1 ]; then
@@ -49,8 +49,6 @@ apt install -y \
   python3-lxml \
   python3-pip
 
-# value from: https://musl.cc/ (without -cross or -native)
-export CROSS_HOST="${CROSS_HOST:-arm-linux-musleabi}"
 # use zlib-ng instead of zlib by default
 USE_ZLIB_NG=${USE_ZLIB_NG:-1}
 
@@ -83,9 +81,6 @@ i686-*-mingw*)
   ;;
 esac
 
-export QT_VER_PREFIX="6"
-export LIBTORRENT_BRANCH="RC_2_0"
-export CROSS_ROOT="${CROSS_ROOT:-/cross_root}"
 # strip all compiled files by default
 export CFLAGS='-s'
 export CXXFLAGS='-s'
@@ -106,12 +101,10 @@ case "${TARGET_HOST}" in
   ;;
 esac
 
-export PATH="${CROSS_ROOT}/bin:${PATH}"
-export CROSS_PREFIX="${CROSS_ROOT}/${CROSS_HOST}"
 export PKG_CONFIG_PATH="${CROSS_PREFIX}/opt/qt/lib/pkgconfig:${CROSS_PREFIX}/lib/pkgconfig:${CROSS_PREFIX}/share/pkgconfig:${PKG_CONFIG_PATH}"
 SELF_DIR="$(dirname "$(readlink -f "${0}")")"
 
-mkdir -p "${CROSS_ROOT}" "/usr/src"
+mkdir -p "/usr/src"
 
 retry() {
   # max retry 5 times
@@ -169,33 +162,6 @@ prepare_ninja() {
     unzip -d /usr/local/bin "/usr/src/ninja-${ninja_ver}-linux.zip"
   fi
   echo "Ninja version $(ninja --version)"
-}
-
-prepare_toolchain() {
-  if [ -f "/usr/src/${CROSS_HOST}-cross.tgz" ]; then
-    cd /usr/src/
-    if ! curl -ksSL --compressed http://musl.cc/SHA512SUMS | grep "${CROSS_HOST}-cross.tgz" | head -1 | sha512sum -c; then
-      rm -f "/usr/src/${CROSS_HOST}-cross.tgz"
-    fi
-  fi
-  if [ ! -f "/usr/src/${CROSS_HOST}-cross.tgz" ]; then
-    retry curl -kLC- -o "/usr/src/${CROSS_HOST}-cross.tgz" "http://musl.cc/${CROSS_HOST}-cross.tgz"
-  fi
-  tar -zxf "/usr/src/${CROSS_HOST}-cross.tgz" --transform='s|^\./||S' --strip-components=1 -C "${CROSS_ROOT}"
-  # mingw does not contains posix thread support: https://github.com/meganz/mingw-std-threads
-  # libtorrent need this feature, see issue: https://github.com/arvidn/libtorrent/issues/5330
-  if [ x"${TARGET_HOST}" = xWindows ]; then
-    if [ ! -d "/usr/src/mingw-std-threads" ]; then
-      mingw_std_threads_git_url="https://github.com/meganz/mingw-std-threads.git"
-      if [ x"${USE_CHINA_MIRROR}" = x1 ]; then
-        mingw_std_threads_git_url="https://ghproxy.com/${mingw_std_threads_git_url}"
-      fi
-      git clone --depth 1 "${mingw_std_threads_git_url}" "/usr/src/mingw-std-threads"
-    fi
-    cd "/usr/src/mingw-std-threads"
-    git pull
-    cp -fv /usr/src/mingw-std-threads/*.h "${CROSS_PREFIX}/include"
-  fi
 }
 
 prepare_zlib() {
@@ -330,7 +296,6 @@ prepare_qt() {
     -DCMAKE_C_COMPILER="${CROSS_HOST}-gcc" \
     -DCMAKE_SYSROOT="${CROSS_PREFIX}" \
     -DCMAKE_CXX_COMPILER="${CROSS_HOST}-g++"
-  cat config.summary
   cmake --build . --parallel
   cmake --install .
   export QT_BASE_DIR="${CROSS_PREFIX}/opt/qt"
@@ -422,7 +387,6 @@ build_qbittorrent() {
 
 prepare_cmake
 prepare_ninja
-prepare_toolchain
 prepare_zlib
 prepare_ssl
 prepare_boost
